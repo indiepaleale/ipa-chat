@@ -1,0 +1,73 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Consolas', monospace;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: black;
+  color: white;
+}
+
+#messages {
+  list-style-type: none;
+  padding: 8px;
+  flex: 1;
+  overflow-y: auto;
+  position: relative; /* Ensure the blinking indicator is positioned correctly */
+}
+
+/* Custom scrollbar styles */
+#messages::-webkit-scrollbar {
+  width: 12px;
+}
+
+#messages::-webkit-scrollbar-track {
+  background: black;
+}
+
+#messages::-webkit-scrollbar-thumb {
+  background-color: white;
+  border-radius: 10px;
+  border: 3px solid black;
+}
+
+#messages li {
+  padding: 8px;
+  background: black;
+  color: white;
+}
+
+#messages li::before {
+  content: '> ';
+  color: white;
+}
+
+#form {
+  display: flex;
+  padding: 10px;
+  background: black;
+}
+
+#input {
+  flex: 1;
+  padding: 10px;
+  border: 1px solid white;
+  background: black;
+  color: white;
+  outline: none; /* Remove default focus outline */
+}
+
+#send {
+  padding: 10px;
+  border: 1px solid white;
+  background: black;
+  color: white;
+  cursor: pointer;
+}
