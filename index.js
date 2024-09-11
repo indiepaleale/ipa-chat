@@ -1,49 +1,85 @@
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import Database from 'better-sqlite3';
+import { Pool } from 'pg';
 
 const app = express();
 const server = createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
 
-// Open SQLite database
-const db = new Database('./chat.db');
+// PostgreSQL connection pool
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
 
 // Create table if it doesn't exist
-db.exec('CREATE TABLE IF NOT EXISTS messages (id INTEGER PRIMARY KEY, text TEXT, createdAt TEXT)');
+pool.query(`
+  CREATE TABLE IF NOT EXISTS messages (
+    id SERIAL PRIMARY KEY,
+    text TEXT NOT NULL,
+    createdAt TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  )
+`, (err, res) => {
+  if (err) {
+    console.error('Error creating table', err);
+  } else {
+    console.log('Table created or already exists');
+  }
+});
 
 // Check for command-line argument to clear the database
 if (process.argv.includes('--clear-database')) {
-    db.exec('DELETE FROM messages');
-    console.log('Database cleared, starting fresh');
-    // process.exit(0); // Exit the process after clearing the database
+  pool.query('DELETE FROM messages', (err, res) => {
+    if (err) {
+      console.error('Error clearing database:', err);
+    } else {
+      console.log('Database cleared, starting fresh');
+    }
+    pool.end();
+  });
 }
 
 app.use(express.static('public'));
 
-io.on('connection', (socket) => {
-    console.log('A user connected');
+io.on('connection', async (socket) => {
+  console.log('A user connected');
 
-    // Send message history to the newly connected user
-    const messages = db.prepare('SELECT * FROM messages ORDER BY createdAt ASC').all();
-    socket.emit('messageHistory', messages);
+  // Send message history to the newly connected user
+  pool.query('SELECT * FROM messages ORDER BY createdAt ASC', (err, res) => {
+    if (err) {
+      console.error('Error fetching messages', err);
+    } else {
+      socket.emit('messageHistory', res.rows);
+    }
+  });
 
-    // Listen for incoming messages
-    socket.on('chatMessage', (msg) => {
-        const message = { text: msg, createdAt: new Date().toISOString() };
-        db.prepare('INSERT INTO messages (text, createdAt) VALUES (?, ?)').run(message.text, message.createdAt);
-
-        // Broadcast the message to all users
-        io.emit('chatMessage', message);
+  // Listen for incoming messages
+  socket.on('chatMessage', async (msg) => {
+    const query = 'INSERT INTO messages (text) VALUES ($1) RETURNING *';
+    const values = [msg];
+    pool.query(query, values, (err, res) => {
+      if (err) {
+        console.error('Error inserting message', err);
+      } else {
+        io.emit('chatMessage', res.rows[0]);
+      }
     });
+  });
 
-    socket.on('disconnect', () => {
-        console.log('A user disconnected');
-    });
+  socket.on('disconnect', () => {
+    console.log('A user disconnected');
+  });
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
