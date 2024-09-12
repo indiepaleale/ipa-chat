@@ -1,8 +1,7 @@
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
-import pkg from 'pg';
-const { Pool } = pkg;
+import { Pool } from 'pg';
 
 const app = express();
 const server = createServer(app);
@@ -13,13 +12,18 @@ const io = new Server(server, {
   }
 });
 
-// PostgreSQL connection pool
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
-});
+// Function to initialize the PostgreSQL connection pool
+function initializePool() {
+  return new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+      rejectUnauthorized: false
+    }
+  });
+}
+
+// Initialize the pool
+let pool = initializePool();
 
 // Create table if it doesn't exist
 pool.query(`
@@ -44,7 +48,6 @@ if (process.argv.includes('--clear-database')) {
     } else {
       console.log('Database cleared, starting fresh');
     }
-    pool.end();
   });
 }
 
@@ -83,4 +86,17 @@ io.on('connection', async (socket) => {
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+});
+
+// Gracefully shut down the server and pool
+process.on('SIGTERM', () => {
+  console.log('SIGTERM signal received: closing HTTP server');
+  server.close(() => {
+    console.log('HTTP server closed');
+    pool.end(() => {
+      console.log('PostgreSQL pool has ended');
+      // Reinitialize the pool for the next deployment
+      pool = initializePool();
+    });
+  });
 });
