@@ -56,6 +56,7 @@ body {
 }
 
 #input {
+  font-family: 'Consolas', monospace;
   flex: 1;
   padding: 10px;
   border: 1px solid white;
